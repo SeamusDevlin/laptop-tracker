@@ -23,12 +23,14 @@ node proxy-server.js
 Then open index.html in your browser
 Double-click index.html
 Or serve it locally (see Method 2)
+
 # Method 2:
 Use Live Server (Recommended)
 Option A: Using Python
 python -m http.server 8000
 python -m SimpleHTTPServer 800
 node proxy-server.js
+
 # Option B: Using Node.js http-server
 Install http-server globally
 npm install -g http-server
