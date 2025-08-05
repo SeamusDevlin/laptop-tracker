@@ -95,6 +95,140 @@ const createApp = ({ makeKandjiRequest }) => {
       });
   });
 
+  // New endpoint for Windows devices
+  const INTUNE_ENABLED = process.env.INTUNE_INTEGRATION_ENABLED === 'true';
+  const INTUNE_GRAPH_API_ENDPOINT = process.env.INTUNE_GRAPH_API_ENDPOINT;
+  const INTUNE_API_SCOPES = process.env.INTUNE_API_SCOPES;
+  const CLIENT_ID = process.env.CLIENT_ID;
+  const CLIENT_SECRET = process.env.CLIENT_SECRET;
+  const TENANT_ID = process.env.TENANT_ID;
+
+  // Helper to get Microsoft Graph access token
+  async function getIntuneAccessToken() {
+      const fetch = require('node-fetch');
+      const url = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;
+      const params = new URLSearchParams();
+      params.append('client_id', CLIENT_ID);
+      params.append('client_secret', CLIENT_SECRET);
+      params.append('scope', 'https://graph.microsoft.com/.default');
+      params.append('grant_type', 'client_credentials');
+      const res = await fetch(url, {
+          method: 'POST',
+          body: params
+      });
+      const data = await res.json();
+      if (!data.access_token) throw new Error('Failed to get Intune access token');
+      return data.access_token;
+  }
+
+  // Fetch Windows devices from Intune
+  async function fetchIntuneDevices(accessToken) {
+      const fetch = require('node-fetch');
+      const url = `${INTUNE_GRAPH_API_ENDPOINT}/deviceManagement/managedDevices?$filter=operatingSystem eq 'Windows'`;
+      console.log('Intune API endpoint:', url);
+      console.log('Intune access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) : 'undefined');
+      const res = await fetch(url, {
+          headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+          }
+      });
+      const data = await res.json();
+      console.log('Raw Intune API response:', JSON.stringify(data, null, 2)); // Debug log
+
+      // Handle Intune API errors (Forbidden, permissions, etc.)
+      if (data.error) {
+          console.error('Intune API error:', data.error.message);
+          // Return the raw error object for frontend troubleshooting
+          throw {
+              isIntuneApiError: true,
+              code: data.error.code,
+              message: data.error.message,
+              raw: data.error,
+              hint: 'Check Azure app registration permissions, admin consent, and that your account has access to Intune. Also verify the tenant and app registration match your environment.'
+          };
+      }
+
+      // Normalize device fields for frontend compatibility
+      return (data.value || []).map(device => ({
+          device_name: device.deviceName || device.name || device.managedDeviceName || 'Unknown Device',
+          user: {
+              name: device.userDisplayName || device.userPrincipalName || device.ownerUserPrincipalName || 'Unknown User',
+              email: device.userPrincipalName || device.ownerUserPrincipalName || ''
+          },
+          model: device.model || device.manufacturer || device.deviceModel || 'Unknown Model',
+          os_version: device.operatingSystemVersion || device.osVersion || 'Unknown OS',
+          serial_number: device.serialNumber || device.deviceSerialNumber || 'Unknown Serial',
+          asset_tag: device.deviceTag || '',
+          first_enrollment: device.enrolledDateTime || device.enrollmentDateTime || device.lastSyncDateTime || device.lastContact || new Date().toISOString()
+      }));
+  }
+
+  app.get('/api/windows-devices', async (req, res) => {
+      if (!INTUNE_ENABLED) {
+          return res.status(403).json({ error: 'Intune integration not enabled' });
+      }
+      try {
+          const accessToken = await getIntuneAccessToken();
+          const devices = await fetchIntuneDevices(accessToken);
+
+          // Teams notification logic (same as Kandji)
+          if (TEAMS_ENABLED && TEAMS_WEBHOOK_URL) {
+              let notifiedSerials;
+              try {
+                  notifiedSerials = loadNotified();
+              } catch (e) {
+                  console.error('Failed to load notified serials:', e);
+                  notifiedSerials = [];
+              }
+              let updated = false;
+              for (const device of devices) {
+                  const serial = device.serial_number;
+                  const firstEnrollment = device.first_enrollment || new Date().toISOString();
+                  const enrollmentDate = new Date(firstEnrollment);
+                  if (isNaN(enrollmentDate)) continue;
+                  const ageYears = (Date.now() - enrollmentDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+                  if (ageYears >= 4 && serial && !notifiedSerials.includes(serial)) {
+                      try {
+                          await sendTeamsNotification(TEAMS_WEBHOOK_URL, device);
+                          notifiedSerials.push(serial);
+                          updated = true;
+                          console.log(`Teams notification sent for Windows device: ${serial}`);
+                      } catch (notifyErr) {
+                          console.error(`Failed to send Teams notification for Windows device ${serial}:`, notifyErr);
+                      }
+                  }
+              }
+              if (updated) {
+                  try {
+                      saveNotified(notifiedSerials);
+                  } catch (saveErr) {
+                      console.error('Failed to save notified serials:', saveErr);
+                  }
+              }
+          }
+
+          res.json({ devices });
+      } catch (error) {
+          console.error('Error fetching from Intune:', error);
+          // If error is from Intune API, return raw error for frontend troubleshooting
+          if (error.isIntuneApiError) {
+              return res.status(500).json({
+                  error: 'Failed to fetch devices from Intune',
+                  code: error.code,
+                  message: error.message,
+                  raw: error.raw,
+                  hint: error.hint
+              });
+          }
+          res.status(500).json({ 
+              error: 'Failed to fetch devices from Intune',
+              message: error.message,
+              hint: 'Check Azure app registration permissions and admin consent for DeviceManagementManagedDevices.Read.All'
+          });
+      }
+  });
+
   return app;
 };
 
@@ -148,6 +282,7 @@ app.listen(PORT, () => {
     console.log(`\n Available endpoints:`);
     console.log(`   GET /api/devices - Fetch devices from Kandji`);
     console.log(`   GET /health - Health check`);
+    console.log(`   GET /api/windows-devices - Fetch Windows devices from Intune`);
     console.log(`\n Open your HTML file in a browser to use the device tracker!`);
 });
 

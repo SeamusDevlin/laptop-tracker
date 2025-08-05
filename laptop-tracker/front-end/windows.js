@@ -1,8 +1,5 @@
-// API Configuration - hardcoded for auto-updates
 const API_CONFIG = {
-    url: 'http://localhost:3001/api/devices',
-    kandjiUrl: 'https://brightsg.api.eu.kandji.io/api/v1/devices',
-    token: '62ee6dcd-886e-4949-a3ac-2ce0b2709c7e'
+    windowsUrl: 'http://localhost:3001/api/windows-devices'
 };
 
 let devicesData = [];
@@ -10,17 +7,15 @@ let currentFilter = 'all';
 let currentSearch = '';
 let autoRefreshInterval;
 
-// Auto-fetch on page load
 document.addEventListener('DOMContentLoaded', function() {
-    fetchDevices();
+    fetchWindowsDevices();
     startAutoRefresh();
     setupFilterButtons();
     setupSearch();
 });
 
 function startAutoRefresh() {
-    // Refresh every 5 minutes
-    autoRefreshInterval = setInterval(fetchDevices, 5 * 60 * 1000);
+    autoRefreshInterval = setInterval(fetchWindowsDevices, 5 * 60 * 1000);
 }
 
 function updateLastUpdateTime() {
@@ -29,9 +24,7 @@ function updateLastUpdateTime() {
 }
 
 function getInitials(name) {
-    if (!name || typeof name !== 'string') {
-        return '??';
-    }
+    if (!name || typeof name !== 'string') return '??';
     return name.split(' ').map(word => word.charAt(0)).join('').toUpperCase();
 }
 
@@ -49,24 +42,13 @@ function getAgeCategory(years) {
     return 'good';
 }
 
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    });
-}
-
 function highlightSearchTerm(text, searchTerm) {
     if (!searchTerm || !text) return text;
-    
     const regex = new RegExp(`(${searchTerm})`, 'gi');
     return text.replace(regex, '<span class="search-highlight">$1</span>');
 }
 
 function renderDeviceItem(device) {
-    // Safely handle missing data
     const user = device.user || {};
     const userName = user.name || 'Unknown User';
     const userEmail = user.email || 'No email';
@@ -74,14 +56,14 @@ function renderDeviceItem(device) {
     const model = device.model || 'Unknown Model';
     const osVersion = device.os_version || 'Unknown OS';
     const serialNumber = device.serial_number || 'Unknown Serial';
-    const assetTag = device.asset_tag || 'N/A'; // Although not used in render, good to keep in mind
+    const assetTag = device.asset_tag || 'N/A';
     const lastEnrollment = device.last_enrollment || device.last_check_in || new Date().toISOString();
     const firstEnrollment = device.first_enrollment || lastEnrollment;
-    
+
     const age = calculateDeviceAge(firstEnrollment);
     const ageCategory = getAgeCategory(age);
     const initials = getInitials(userName);
-    
+
     let itemClass = 'device-item';
     if (ageCategory === 'danger') itemClass += ' needs-replacement';
     else if (ageCategory === 'warning') itemClass += ' warning';
@@ -100,7 +82,6 @@ function renderDeviceItem(device) {
         ageText = 'GOOD';
     }
 
-    // Apply search highlighting
     const highlightedDeviceName = highlightSearchTerm(deviceName, currentSearch);
     const highlightedUserName = highlightSearchTerm(userName, currentSearch);
     const highlightedUserEmail = highlightSearchTerm(userEmail, currentSearch);
@@ -110,24 +91,20 @@ function renderDeviceItem(device) {
     return `
         <div class="${itemClass}" data-category="${ageCategory}">
             <div class="device-avatar">${initials}</div>
-            
             <div class="device-info">
                 <div class="device-main">
                     <div class="device-name">${highlightedDeviceName}</div>
                     <div class="device-user">${highlightedUserName} • ${highlightedUserEmail}</div>
                     <div class="device-model">${highlightedModel}</div>
                 </div>
-                
                 <div class="device-detail">
                     <div class="detail-label">OS Version</div>
                     <div class="detail-value">${osVersion}</div>
                 </div>
-                
                 <div class="device-detail">
                     <div class="detail-label">Serial Number</div>
                     <div class="detail-value">${highlightedSerial}</div>
                 </div>
-                
                 <div class="age-status">
                     <div class="${ageBubbleClass}">${ageText}</div>
                     <div class="age-years">${age.toFixed(1)} years</div>
@@ -163,7 +140,6 @@ function updateStats() {
 
 function matchesSearch(device, searchTerm) {
     if (!searchTerm) return true;
-    
     const searchLower = searchTerm.toLowerCase();
     const user = device.user || {};
     const userName = (user.name || '').toLowerCase();
@@ -171,7 +147,6 @@ function matchesSearch(device, searchTerm) {
     const deviceName = (device.device_name || '').toLowerCase();
     const model = (device.model || '').toLowerCase();
     const serialNumber = (device.serial_number || '').toLowerCase();
-    
     return userName.includes(searchLower) ||
            userEmail.includes(searchLower) ||
            deviceName.includes(searchLower) ||
@@ -181,20 +156,15 @@ function matchesSearch(device, searchTerm) {
 
 function renderDevices() {
     const content = document.getElementById('content');
-    
     if (devicesData.length === 0) {
         content.innerHTML = '<div class="empty-state"><h3>No devices found</h3><p>Try adjusting your filters or check your API configuration.</p></div>';
         return;
     }
 
     let filteredDevices = devicesData;
-    
-    // Apply search filter
     if (currentSearch) {
         filteredDevices = filteredDevices.filter(device => matchesSearch(device, currentSearch));
     }
-    
-    // Apply category filter
     if (currentFilter === 'replacement') {
         filteredDevices = filteredDevices.filter(d => {
             const firstEnrollment = d.first_enrollment || d.last_enrollment || d.last_check_in || new Date().toISOString();
@@ -213,7 +183,6 @@ function renderDevices() {
         });
     }
 
-    // Sort by age (oldest first based on first enrollment)
     filteredDevices.sort((a, b) => {
         const firstEnrollmentA = a.first_enrollment || a.last_enrollment || a.last_check_in || new Date().toISOString();
         const firstEnrollmentB = b.first_enrollment || b.last_enrollment || b.last_check_in || new Date().toISOString();
@@ -237,32 +206,25 @@ function renderDevices() {
 
 function filterDevices(filter, clickedButton) {
     currentFilter = filter;
-    
-    // Update button states
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.classList.remove('active');
     });
     clickedButton.classList.add('active');
-    
     renderDevices();
 }
 
 function setupSearch() {
     const searchInput = document.getElementById('searchInput');
     const clearSearch = document.getElementById('clearSearch');
-    
     searchInput.addEventListener('input', function() {
         currentSearch = this.value.trim();
-        
         if (currentSearch) {
             clearSearch.classList.remove('hidden');
         } else {
             clearSearch.classList.add('hidden');
         }
-        
         renderDevices();
     });
-    
     clearSearch.addEventListener('click', function() {
         searchInput.value = '';
         currentSearch = '';
@@ -272,61 +234,84 @@ function setupSearch() {
     });
 }
 
-async function fetchDevices() {
+async function fetchWindowsDevices() {
     const content = document.getElementById('content');
     if (devicesData.length === 0) {
         content.innerHTML = '<div class="loading">🔄 Loading devices...</div>';
     }
-
     try {
-        // Fetch Mac devices only
-        const macResponse = await fetch(API_CONFIG.url, {
+        const winResponse = await fetch(API_CONFIG.windowsUrl, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
         });
-        if (!macResponse.ok) throw new Error(`Mac HTTP error! status: ${macResponse.status}`);
-        const macData = await macResponse.json();
-        let macDevices = [];
-        if (Array.isArray(macData)) macDevices = macData;
-        else if (macData.devices && Array.isArray(macData.devices)) macDevices = macData.devices;
-        else if (macData.results && Array.isArray(macData.results)) macDevices = macData.results;
+        if (!winResponse.ok) {
+            let errorMsg = `Windows HTTP error! status: ${winResponse.status}`;
+            let errorData = {};
+            try {
+                errorData = await winResponse.json();
+            } catch (e) {
+                errorMsg += '<br><br>Unable to parse error response.';
+            }
+            if (errorData && errorData.message) {
+                errorMsg += `<br><br><strong>Backend message:</strong> ${errorData.message}`;
+                // If backend message is a JSON string, pretty print it
+                try {
+                    const parsedMsg = JSON.parse(errorData.message);
+                    errorMsg += `<br><br><strong>Backend message (parsed):</strong><pre>${JSON.stringify(parsedMsg, null, 2)}</pre>`;
+                } catch (e) {
+                    // Not JSON, just show as is
+                }
+            }
+            if (errorData && errorData.hint) {
+                errorMsg += `<br><br><strong>Hint:</strong> ${errorData.hint}`;
+            }
+            errorMsg += `<br><br><strong>Raw error response:</strong><pre>${JSON.stringify(errorData, null, 2)}</pre>`;
+            throw new Error(errorMsg);
+        }
+        const winData = await winResponse.json();
+        console.log('Raw Windows API response:', winData);
 
-        devicesData = macDevices;
-        console.log('Processed devices:', devicesData.length);
+        let windowsDevices = [];
+        if (Array.isArray(winData)) {
+            windowsDevices = winData;
+        } else if (winData.devices && Array.isArray(winData.devices)) {
+            windowsDevices = winData.devices;
+        } else if (winData.results && Array.isArray(winData.results)) {
+            windowsDevices = winData.results;
+        } else if (winData.value && Array.isArray(winData.value)) {
+            windowsDevices = winData.value;
+        } else {
+            windowsDevices = [];
+        }
 
+        console.log('Processed Windows devices:', windowsDevices.length, windowsDevices);
+
+        devicesData = windowsDevices;
         document.getElementById('stats').style.display = 'grid';
         document.getElementById('filtersContainer').style.display = 'flex';
-
         updateStats();
         renderDevices();
         updateLastUpdateTime();
-
     } catch (error) {
         console.error('Fetch error:', error);
         const errorMessage = `
             <div class="error">
-                <strong>❌ Error fetching devices:</strong> ${error.message}
+                <strong>❌ Error fetching Windows devices:</strong> ${error.message}
                 <br><br>
-                <strong>Setup Required:</strong> You need to run the proxy server first.
-                <br><br>
-                <strong>Quick Setup:</strong>
-                <ol>
-                    <li>Save the proxy server code as <code>proxy-server.js</code></li>
-                    <li>Run: <code>npm install express cors node-fetch</code></li>
-                    <li>Run: <code>node proxy-server.js</code></li>
-                    <li>Refresh this page</li>
-                </ol>
+                <strong>Possible Cause:</strong> If you have already granted permissions, double-check:</strong>
+                <ul>
+                    <li>Token is for the correct tenant and app registration</li>
+                    <li>API permissions are <code>DeviceManagementManagedDevices.Read.All</code> (Application type)</li>
+                    <li>Admin consent is shown as "Granted"</li>
+                    <li>Your account has access to Intune and devices exist</li>
+                </ul>
+                <strong>Raw backend error response is shown above for troubleshooting.</strong>
             </div>
         `;
         content.innerHTML = errorMessage;
     }
 }
 
-// The filterButtons setup needs to be called after the buttons are rendered (which is on DOMContentLoaded)
-// and now expects the button element to be passed, consistent with the inline onclick.
-// This function is still needed to ensure the initial 'active' class is set correctly on load if needed,
-// but the primary filter logic is now handled by the onclick in the HTML passing 'this'.
 function setupFilterButtons() {
     // No specific setup needed here anymore for event listeners as they are inline.
-    // This function can be simplified or removed if not setting initial states.
 }
