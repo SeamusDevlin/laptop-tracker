@@ -10,6 +10,7 @@
 - **Auto-Refresh:** Device data updates every 5 minutes.
 - **Teams Notifications:** Sends notifications to a Microsoft Teams channel when a device reaches 4+ years old (configurable).
 - **Proxy Server:** Securely proxies requests to the Kandji API, keeping your API token safe.
+- **Microsoft Graph:** Integration: Enhanced user and device management.
 - **Health Endpoint:** `/health` endpoint for monitoring proxy server status.
 
 ## Features
@@ -26,6 +27,8 @@
 - [Node.js](https://nodejs.org/) v14 or higher
 - [npm](https://www.npmjs.com/)
 - Kandji API token and subdomain
+- Azure Subscription
+- Microsoft 365 tenant
 - (Optional) Microsoft Teams Incoming Webhook URL
 
 ### 2. Clone the Repository
@@ -51,6 +54,15 @@ KANDJI_API_TOKEN=your-kandji-api-token
 
 TEAMS_WEBHOOK_URL=https://your-teams-webhook-url
 TEAMS_NOTIFICATIONS_ENABLED=true
+
+CLIENT_ID="your-client-id"
+CLIENT_SECRET="your-client-secret"
+TENANT_ID="your-tenant-id"
+REDIRECT_URI=http://localhost:3000/auth/callback
+
+INTUNE_GRAPH_API_ENDPOINT=https://graph.microsoft.com/v1.0
+INTUNE_API_SCOPES=DeviceManagementManagedDevices.Read.All
+INTUNE_INTEGRATION_ENABLED=true
 ```
 
 - Set `TEAMS_NOTIFICATIONS_ENABLED=false` to disable Teams notifications.
@@ -64,6 +76,7 @@ node back-end/proxy-server.js
 - The proxy server runs on `http://localhost:3001`
 - Endpoints:
   - `GET /api/devices` - Fetches devices from Kandji
+  - `GET /api/windows-devices` - Fetches users from Microsoft Graph/Intune
   - `GET /health` - Health check
 
 ### 6. Start the Front-End
