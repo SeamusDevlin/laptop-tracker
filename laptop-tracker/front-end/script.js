@@ -279,7 +279,7 @@ async function fetchDevices() {
     }
 
     try {
-        // Fetch Mac devices only
+        // Fetch Mac devices
         const macResponse = await fetch(API_CONFIG.url, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
@@ -322,11 +322,5 @@ async function fetchDevices() {
     }
 }
 
-// The filterButtons setup needs to be called after the buttons are rendered (which is on DOMContentLoaded)
-// and now expects the button element to be passed, consistent with the inline onclick.
-// This function is still needed to ensure the initial 'active' class is set correctly on load if needed,
-// but the primary filter logic is now handled by the onclick in the HTML passing 'this'.
 function setupFilterButtons() {
-    // No specific setup needed here anymore for event listeners as they are inline.
-    // This function can be simplified or removed if not setting initial states.
 }

@@ -7,7 +7,6 @@ const https = require('https');
 const TEAMS_WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL;
 const TEAMS_ENABLED = process.env.TEAMS_NOTIFICATIONS_ENABLED === 'true';
 
-// Update your existing KANDJI_CONFIG
 const KANDJI_CONFIG = {
     subdomain: process.env.KANDJI_SUBDOMAIN || 'your-subdomain',
     token: process.env.KANDJI_API_TOKEN || 'your-api-token',
@@ -33,7 +32,6 @@ const createApp = ({ makeKandjiRequest }) => {
       
       try {
           const data = await makeKandjiRequest(KANDJI_CONFIG.url, KANDJI_CONFIG.token);
-          // console.log('Raw Kandji API response:', Array.isArray(data) ? `Array(${data.length})` : typeof data, data);
           const devices = Array.isArray(data.devices) ? data.devices : [];
           
           // Teams notification logic
@@ -211,7 +209,6 @@ const createApp = ({ makeKandjiRequest }) => {
           res.json({ devices });
       } catch (error) {
           console.error('Error fetching from Intune:', error);
-          // If error is from Intune API, return raw error for frontend troubleshooting
           if (error.isIntuneApiError) {
               return res.status(500).json({
                   error: 'Failed to fetch devices from Intune',
@@ -297,7 +294,4 @@ process.on('SIGINT', () => {
     process.exit(0);
 });
 
-// At the very end of the file, add:
 module.exports = createApp;
-// Or, if you want to export more for testing:
-// module.exports = { app, makeKandjiRequest };
